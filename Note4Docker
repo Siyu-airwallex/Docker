@@ -1,0 +1,193 @@
+Images are read only templates used to create containers
+Images are created with the docker build command
+Images are composed of layers of other images
+Images are stored in a Docker registry
+
+
+If an image is a class, then a container is an instance of a class - a runtime object
+Containers are lightweight and portable encapsulations of an environment in which to run applications
+Containers are created from images, Inside a container, it has all the binaries and dependencies needed to run the application
+
+A registry is where we store our images, like DockerHub
+Inside a registry, images are stored in repositories.
+Docker repository is a collection of different images,with the same name, that have different tags, each tag represents a different version of that image.
+
+
+Image Layers
+All changes made into the running containers will be written into writable layer.
+When the container is deleted, the writable layer is also deleted, but the underlying images remains unchanged
+Multiple containers can share access to the same underlying image
+
+
+
+command:
+
+	docker info
+	docker version
+	docker images
+	docker run 7e3fd1d11c95
+	docker run 7e3fd1d11c95 echo "hello docker"  //docker run repository:tag command [arguments]
+	docker run busybox:1.24 echo "hello world"
+	docker run busybox:1.24 ls /
+	docker run -i -t busybox:1.24               // '-i' starts an interactive container
+	docker run -d busybox:1.24 sleep 1000  // run the container in the background, return container id
+	docker stop ebb6fae6176f
+	docker ps                                   // check all running docker containers in local computer
+	docker ps -a                                  // all containers previously ran
+	docker run --rm  busybox:1.24 sleep 1                 // remove container after it exit
+	docker run --name hello_world busybox;1.24           // specify the container name
+	docker inspect 0e0479e0d0942b236b70e             //display the low level information of container or image
+	docker run -it -p 8888:8080 tomcat:8.0
+	docker run -it -d -p 8888:8080 tomcat:8.0        //mapping container port 8080 into host port 8888
+	docker logs c265f34b2b3ffc29d7964d984d5bb72f746a8d838f94c54e664d40e6267c102a          //check container logs
+	docker history busybox:1.24
+
+
+
+Push docker image into dockerhub.	
+
+	docker tag 3b3f30d45f63 charliefeng/debian:1.1   //asscoicate docker image with dockerhub account
+	docker login --username=charliefeng
+	docker push charliefeng/debian:1.1
+
+
+#Eg start a containerized applicaiton, python flask
+	docker run -d -p 5000:5000 e042997e8fc       //
+	docker exec -it 9865d0963643 bash   // 'exec' allows run a command in a running container
+    
+
+
+ # Use link to connect two cotainers
+	docker run -d --name redis redis:3.2.0
+	docker build -t dockerapp:v0.3 .
+	docker run -d -p 5000:5000 --link redis dockerapp:v0.3  //link two container
+
+
+Two ways to build a docker image
+
+	1. Manually commit changes made in a Docker container
+
+		Spin up a container from a base image
+		Install Git package in the container
+		Commit changes made in the container
+
+        eg.
+            docker run -it debian:jessie
+                apt-get update && apt-get install -y git
+                exit
+            docker ps -a
+    
+            docker commit ab40d05ae574 siyu/debian:1.0
+            docker run -it siyu/debian:1.0
+
+
+	2. Write a Dockerfile
+
+		Chain RUN Instructions
+			Each RUN command will execute the command on the top writtalbe layer of the container, then commit the container as a new image
+			The new image is used for the next step in the Dockerfile. So each RUN instruction will create a new image layer
+			It is recommended to chain the RUN instructions in the Dockerfile to reduce the number of image layers it creates
+
+		Sort Multi-line Arguments Alphanumerically
+			To avoid duplication of packages
+
+
+		CMD Instructions
+
+			The CMD instruction doesn't run when building the image, it only runs when the container starts up
+			You can specify the command in either exec form which is perferred or in shell form
+
+		Docker Cache
+
+			Each time Docker executes an instruction it builds a new image layer
+			The next time, if the instruction doesn't change, Docker will simply reuse the existing layer
+
+
+		Instrunction :
+			FROM
+			RUN: better to chain
+			CMD: specify some command that will be executed after container 	start up
+			COPY: copy file from local system to the container (Recommended)
+			ADD: not only copy file but also download file from internet and copy to container, ability to unpack compressed file
+
+
+        eg.
+            docker build -t siyu/debian .
+            docker run 3b3f30d45f63 echo "hello docker"     // overwrite CMD instructions
+            docker build -t siyu/debian . --no-cache=true 
+
+
+
+Docker Compose
+
+	Docker compose is a handy tool to defining and running multi-container Docker applications.
+
+	Docker compose uses yaml files to store the configuration of all containers, which removes the burden to maintain our scripts for docker orchestration
+
+
+	command:
+		docker-compose up //starts up all the containers
+		docker-compose up -d
+		docker-compse down
+		docker-compose ps
+		docker-compose logs
+		docker-compose logs -f // outputs appended logs when logs grows
+		docker-compose stop // stop all running containers without removing them
+		docker-compose rm  // rm all containers
+		docker-compose build  // rebuild all the images
+
+		docker-compose run dockerapp python test.py  // execute command in running service
+
+		docker-compose run dockerapp python test.py    // run unit test inside containers
+
+
+
+Docker Network
+
+	Type:
+				Closed Network/ None Network
+				Bridge Network
+				Host Network
+				Overlay Network
+
+	command:
+		docker network ls
+
+		//Test for Closed Network: outside network access is non-reachable
+		docker run -d --net none busybox sleep 1000
+		docker exec -it 900082c21125c402465d27d26483165d2030c787215ab93c6c63821da298583d /bin/ash
+
+		//Test Bridge Network, containers within the same bridge can talk to each other and outside.(Most common)
+		docker network inspect bridge
+		run -d --name container_1 busybox sleep 1000
+		docker exec -it c401f2bbea94 ifconfig
+
+	  docker run -d --name container_2 busybox sleep 1000
+		docker exec -it 7fc4a855f77c  ifconfig
+		docker exec -it container_1 ping 172.17.0.3
+		docker exec -it container_1 ping 8.8.8.8
+
+		docker network create --driver bridge my_bridge_network
+		docker network inspect my_bridge_network
+
+		docker run -d --name container_3 --net my_bridge_network busybox sleep 1000
+		docker exec -it container_3 ping 172.17.0.2  // ping denied
+
+		docker network connect bridge container_3
+		docker exec -it container_3 ifconfig
+		docker exec -it container_3 ping 172.17.0.2  // ping success
+
+		docker network disconnect bridge container_3
+		docker exec -it container_3 ifconfig
+
+
+		//Test Host Network, containers have full access to host network interface, the least protected network model
+		docker run -d --name container_4 --net host busybox sleep 1000
+		docker exec -it container_4 ifconfig
+
+		//Overlay Network, support multi-host networking out-of-the-box
+		//Require some pre-existing conditions before it can be created
+			- Running Docker engine in Swarm mode
+			- A key-value store such as consul
+
+
